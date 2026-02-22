@@ -1,0 +1,6 @@
+# created by virtualenv automatically
+.venv/
+__pycache__/
+*.pyc
+chroma_db/
+data/
