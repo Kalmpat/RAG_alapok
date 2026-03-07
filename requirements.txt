@@ -6,3 +6,5 @@ langchain_chroma
 gradio
 python-dotenv
 pypdf
+streamlit
+google-genai
