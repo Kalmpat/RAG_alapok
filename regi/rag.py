@@ -18,8 +18,8 @@ load_dotenv()
 
 
 # Konfigurálás az adatok és az adatbázis elérése
-DATA_PATH = r"data"
-CHROMA_PATH = r"chroma_db"
+DATA_PATH = r"../data"
+CHROMA_PATH = r"../chroma_db"
 
 #  Vektor modell
 embeddings_model = OllamaEmbeddings(model="nomic-embed-text")

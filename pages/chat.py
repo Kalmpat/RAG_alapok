@@ -1,18 +1,5 @@
-from dotenv import load_dotenv
-import os
-from google import genai
 import streamlit as st
-
-# 1. Beállítások betöltése
-load_dotenv()
-api_key = os.getenv("GOOGLE_API_KEY")
-
-if not api_key:
-    st.error("Hiba: Hiányzik az API kulcs a .env fájlból!")
-    st.stop()
-
-client = genai.Client(api_key=api_key)
-
+from genai_rag import processing
 
 # Képernyő szélesítése
 st.set_page_config(layout="wide")
@@ -52,11 +39,7 @@ with col1:
             with st.chat_message("assistant"):
                 with st.spinner("Gondolkozom..."):
 
-                    response = client.models.generate_content(
-                        model="gemini-2.5-flash",
-                        contents=query,
-                    )
-
+                    response = processing(query)
                     answer_text = response.text
                     st.markdown(answer_text)
 
@@ -70,3 +53,4 @@ with col2:
     viz_container = st.container(height=600)
     with viz_container:
         st.write("Ábrák")
+        st.warning("Még nem jó")

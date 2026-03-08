@@ -1,0 +1,12 @@
+--------------------Mermaid---------------------------
+        Emellett generálj egy egyszerű mermaid.js diagramot (graph TD),
+        ami egy tanulási folyamatot ábrázol.
+        Csak a kódot add vissza, markdown blokkban.
+
+        Szabályok:
+        - a kérdés alapján készítsd el
+        - nyugodtan használd a különböző diagramokat
+        - egyszerű diagramot készíts, nem kell túl bonyolítani
+
+
+        """
