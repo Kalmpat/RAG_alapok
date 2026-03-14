@@ -83,24 +83,37 @@ def processing(query):
     docs = retriever.invoke(query)
     context_text = "\n\n---\n\n".join([doc.page_content for doc in docs])
 
-
-
     prompt = f"""
-        Te egy tapasztalt oktatási asszisztens vagy. 
-        
-        Forrásanyag:
-        {context_text}
-        
-        Kérdés:
-        {query}
-        
-        Szabályok:
-        - Csak a megadott forrásanyagból dolgozz
-        - Ha a forrásanyagban nincs benne a válasz, mondd pontosan ezt: "Sajnos erről nem találtam információt a tananyagban.", ne találj ki semmit hozzá
-        - Próbálj meg, egyszerűen válaszolni, hogy a diákok számára a lehető legérthetőbb legyen
-        
-        
-        """
+            Te egy tapasztalt oktatási asszisztens vagy. 
+
+            Forrásanyag:
+            {context_text}
+
+            Kérdés:
+            {query}
+
+            Szabályok:
+            - Csak a megadott forrásanyagból dolgozz
+            - Ha a forrásanyagban nincs benne a válasz, mondd pontosan ezt: "Sajnos erről nem találtam információt a tananyagban.", ne találj ki semmit hozzá
+            - Próbálj meg, egyszerűen válaszolni, hogy a diákok számára a lehető legérthetőbb legyen
+
+
+            --------------------Mermaid---------------------------
+            Generálj egy érvényes Mermaid.js diagramot a kérdés témájához.
+            Diagramtípusok kiválasztása:
+
+            - graph td / mindmap: Ha a téma fogalmi felépítéséről, kategóriákról vagy részegységekről szól.
+            - flowchart: Ha egy folyamatról, döntési mechanizmusról vagy logikai láncról van szó.
+            - sequence: Ha két vagy több szereplő közötti időrendi üzenetváltást kell szemléltetni.
+            - state: Ha egy egység különböző állapotait mutatod be.
+            - er / class: Ha adatszerkezetek közötti fix kapcsolatokat ábrázolsz.
+
+            SZIGORÚ szabályok:
+            - Csak ```mermaid blokkban add vissza a kódot, semmi más szöveget utána
+            - Csomópontok legyenek rövidek, max 4-5 szó, maximálisan 8 csomópont legyen
+
+
+            """
 
     response = client.models.generate_content(
         model="gemini-2.5-flash",

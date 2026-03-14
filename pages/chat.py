@@ -1,5 +1,7 @@
 import streamlit as st
 from genai_rag import processing
+from mermaid import mermaid, merm, render_custom_mermaid, clean_text
+from streamlit_mermaid import st_mermaid
 
 # Képernyő szélesítése
 st.set_page_config(layout="wide")
@@ -10,6 +12,8 @@ st.title("RAG alapú vizuális jegyzetelő asszisztens")
 
 col1, col2 = st.columns([0.6, 0.4])
 
+if "mermaid_code" not in st.session_state:
+    st.session_state.mermaid_code = ""
 
 # Chatbot
 with col1:
@@ -40,7 +44,9 @@ with col1:
                 with st.spinner("Gondolkozom..."):
 
                     response = processing(query)
-                    answer_text = response.text
+                    st.session_state.mermaid_code = response.text
+                    answer_text = clean_text(response.text)
+                    # print(answer_text)
                     st.markdown(answer_text)
 
                     # Nagy nyelvi modell üzenetének elmentése
@@ -52,5 +58,9 @@ with col2:
     st.subheader("📊 Vizualizáció")
     viz_container = st.container(height=600)
     with viz_container:
-        st.write("Ábrák")
-        st.warning("Még nem jó")
+        # st.warning("Még nem jó")
+        # mermaid(st.session_state.mermaid_code)
+        clean_code = merm(st.session_state.mermaid_code)
+        if clean_code:
+            # st_mermaid(clean_code, height=600)
+            render_custom_mermaid(clean_code, height=550)
