@@ -1,10 +1,15 @@
 import os
 import streamlit as st
 import json
-from osszefoglalo import process
+from osszefoglalo import process_document
 import time
 
 DATA_PATH = r"data"
+#st.set_page_config(layout="wide")
+
+if not st.session_state.api_key:
+    st.warning("⚠️ Kérlek, add meg az API kulcsot az oldalsávon!")
+    st.stop()
 
 
 st.title(" 📄 Dokumentum")
@@ -17,13 +22,13 @@ uploaded_files = st.file_uploader(
 
 new_file = False
 
-st.warning("⚠️Figyelem! Mindig a legutoljára feltöltött tananyag alapján történik az összefoglaló készítése")
+st.warning("Figyelem! Mindig a legutoljára feltöltött tananyag alapján történik az összefoglaló készítése")
+
 
 st.subheader("📚 Forrásanyagok")
 if os.path.exists(DATA_PATH):
     files = os.listdir(DATA_PATH)
-    for file in files:
-        st.write(f"📄{file}")
+
 else:
     os.mkdir(DATA_PATH)
     st.write("Még nincsenek forrásanyagok")
@@ -41,7 +46,7 @@ if uploaded_files:
 
             # Feldolgozás egyesével
             with st.spinner(f"Feldolgozás: {uploaded_file.name}..."):
-                process(save_path)
+                process_document(save_path,st.session_state.api_key,st.session_state.model)
                 st.success(f"Kész: {uploaded_file.name}")
             new_file = True
 
@@ -96,6 +101,10 @@ if os.path.exists("tananyag.json"):
 
 
             #st.write(json.dumps(data, indent=4, ensure_ascii=False))
+
+
+
+
 
 
 

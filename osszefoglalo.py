@@ -10,24 +10,25 @@ from sema import tananyag_sema
 import json
 
 # Betöltés
-load_dotenv()
-api_key = os.getenv("GOOGLE_API_KEY")
+# load_dotenv()
+# api_key = os.getenv("GOOGLE_API_KEY")
 
-if not api_key:
-    print("Nincs API kulcs")
-    exit(1)
+# if not api_key:
+#    print("Nincs API kulcs")
+#    exit(1)
 
-client = genai.Client(api_key=api_key)
 
 # Konfigurálás az adatok eléréséhez
 DATA_PATH = r"data"
 
-if not os.path.exists(DATA_PATH):
-    print("Hiba, nem található az fájl")
-    exit(1)
 
+def process_document(file_path, api_key, model_name):
+    client = genai.Client(api_key=api_key)
 
-def process(file_path):
+    if not os.path.exists(DATA_PATH):
+        print("Hiba, nem található az fájl")
+        exit(1)
+
     # Doksik betöltése
     # loader = PyPDFDirectoryLoader(DATA_PATH)
     loader = PyPDFLoader(file_path)
@@ -46,9 +47,9 @@ def process(file_path):
         Az összefoglalót az alábbi JSON séma alapján készíts el
         """
 
-    #print("\nÖsszefoglaló generálása\n")
+    print("\nÖsszefoglaló generálása\n")
     response = client.models.generate_content(
-        model="gemini-2.5-flash",
+        model=model_name,
         contents=prompt,
         config={
             "response_mime_type": "application/json",

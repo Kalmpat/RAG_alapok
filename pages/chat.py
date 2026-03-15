@@ -1,11 +1,14 @@
 import streamlit as st
-from genai_rag import processing
+from genai_rag import process
 from mermaid import mermaid, merm, render_custom_mermaid, clean_text
 from streamlit_mermaid import st_mermaid
 
 # Képernyő szélesítése
-st.set_page_config(layout="wide")
+#st.set_page_config(layout="wide")
 
+if not st.session_state.api_key:
+    st.warning("⚠️ Kérlek, add meg az API kulcsot az oldalsávon!")
+    st.stop()
 
 # Cím
 st.title("RAG alapú vizuális jegyzetelő asszisztens")
@@ -14,6 +17,8 @@ col1, col2 = st.columns([0.6, 0.4])
 
 if "mermaid_code" not in st.session_state:
     st.session_state.mermaid_code = ""
+
+
 
 # Chatbot
 with col1:
@@ -43,8 +48,9 @@ with col1:
             with st.chat_message("assistant"):
                 with st.spinner("Gondolkozom..."):
 
-                    response = processing(query)
+                    response = process(query, st.session_state.api_key, st.session_state.model)
                     st.session_state.mermaid_code = response.text
+                    print(response.text)
                     answer_text = clean_text(response.text)
                     # print(answer_text)
                     st.markdown(answer_text)
