@@ -97,8 +97,6 @@ def processing(query):
             - Ha a forrásanyagban nincs benne a válasz, mondd pontosan ezt: "Sajnos erről nem találtam információt a tananyagban.", ne találj ki semmit hozzá
             - Próbálj meg, egyszerűen válaszolni, hogy a diákok számára a lehető legérthetőbb legyen
 
-
-            --------------------Mermaid---------------------------
             Generálj egy érvényes Mermaid.js diagramot a kérdés témájához.
             Diagramtípusok kiválasztása:
 
