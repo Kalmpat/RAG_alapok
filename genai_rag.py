@@ -79,6 +79,53 @@ def get_vector_store(api_key):
 
 # query = "Miről szól a tananyag?"
 
+def delete_file(filename,api_key):
+    # Embedding model
+    embeddings_model = GoogleGenerativeAIEmbeddings(
+        model="gemini-embedding-001",
+        google_api_key=api_key
+    )
+    # Az adatbázis
+    vector_store = Chroma(
+        collection_name="tananyagok",
+        embedding_function=embeddings_model,
+        persist_directory=CHROMA_PATH,
+    )
+
+    # Útvonal megadása (join, ha megváltozna a mappa neve)
+    target = os.path.join(DATA_PATH, filename)
+
+    # Törlés
+    vector_store.delete(where={"source": target})
+
+
+def embed_file(filename,api_key):
+    embeddings_model = GoogleGenerativeAIEmbeddings(
+        model="gemini-embedding-001",
+        google_api_key = api_key
+    )
+    loader = PyPDFLoader(filename)
+    document = loader.load()
+
+    text_splitter = RecursiveCharacterTextSplitter(
+        chunk_size=1200,
+        chunk_overlap=300,
+        length_function=len,
+        is_separator_regex=False,
+    )
+
+    chunks = text_splitter.split_documents(document)
+    vector_store = Chroma(
+        collection_name="tananyagok",
+        embedding_function=embeddings_model,
+        persist_directory=CHROMA_PATH,
+    )
+
+    uuids = [str(uuid4()) for _ in range(len(chunks))]
+    vector_store.add_documents(documents=chunks, ids=uuids)
+
+
+
 def process(query, api_key, model_name):
     client = genai.Client(api_key=api_key)
     vector_store = get_vector_store(api_key)
@@ -114,10 +161,12 @@ def process(query, api_key, model_name):
         - stateDiagram-v2: Ha egy egység különböző állapotait mutatod be.
         - erDiagram / classDiagram: Ha adatszerkezetek közötti fix kapcsolatokat ábrázolsz.
 
-        SZIGORÚ szabályok:
+        Szigorú szabályok:
         - Csak ```mermaid blokkban add vissza a kódot, semmi más szöveget utána
         - Csomópontok legyenek rövidek, max 4-5 szó, maximálisan 8 csomópont legyen
         - Egy csomópont feliratát (pl. A[Szöveg]) csak az első előforduláskor definiáld, utána már csak az azonosítóját (pl. A) használd a nyilaknál!
+        - A Mermaid kódban a csomópontok feliratait idézőjelek nélkül add meg, pl: A[HDD] vagy B[HDD merevlemez].
+        - A Mermaid kódban ne használj kerek zárójelet (), vesszőt vagy egyéb írásjelet még az idézőjeleken belül sem.
         """
 
     response = client.models.generate_content(

@@ -1,6 +1,8 @@
 import os
 import streamlit as st
 import json
+
+from genai_rag import delete_file, embed_file
 from osszefoglalo import process_document
 import time
 
@@ -28,6 +30,36 @@ st.warning("Figyelem! Mindig a legutoljára feltöltött tananyag alapján tört
 st.subheader("📚 Forrásanyagok")
 if os.path.exists(DATA_PATH):
     files = os.listdir(DATA_PATH)
+    if not files:
+        st.info("Nincsenek feltöltött tananyagok")
+    else:
+        container = st.container(border=True)
+        with container:
+            for file in files:
+                col1, col2 = st.columns([8, 1])
+                with col1:
+                    st.markdown(f"<div style='padding-top: 5px;'>📄{file}</div>", unsafe_allow_html=True)
+                with col2:
+                    if st.button("Törlés", key=f"del_{file}", type="primary", use_container_width=True):
+                        with st.spinner(f"{file} törlése...."):
+                            try:
+                                delete_file(file, st.session_state.api_key)
+
+                                file_path = os.path.join(DATA_PATH, file)
+                                if os.path.exists(file_path):
+                                    os.remove(file_path)
+                                if os.path.exists("tananyag.json"):
+                                    os.remove("tananyag.json")
+
+                                if "my_uploader" in st.session_state:
+                                    del st.session_state["my_uploader"]
+
+                                st.success(f"{file} törölve!")
+                                time.sleep(1)
+                                st.rerun()
+
+                            except Exception as e:
+                                st.error(e)
 
 else:
     os.mkdir(DATA_PATH)
@@ -47,6 +79,7 @@ if uploaded_files:
             # Feldolgozás egyesével
             with st.spinner(f"Feldolgozás: {uploaded_file.name}..."):
                 process_document(save_path,st.session_state.api_key,st.session_state.model)
+                embed_file(save_path, st.session_state.api_key)
                 st.success(f"Kész: {uploaded_file.name}")
             new_file = True
 
