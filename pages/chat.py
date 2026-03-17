@@ -18,7 +18,8 @@ col1, col2 = st.columns([0.6, 0.4])
 if "mermaid_code" not in st.session_state:
     st.session_state.mermaid_code = ""
 
-
+if "image" not in st.session_state:
+    st.session_state.image = ""
 
 # Chatbot
 with col1:
@@ -50,14 +51,15 @@ with col1:
 
                     response = process(query, st.session_state.api_key, st.session_state.model)
                     st.session_state.mermaid_code = response.text
-                    print(response.text)
+                    st.session_state.image = mermaid(response.text)
+                    #print(response.text)
                     answer_text = clean_text(response.text)
                     # print(answer_text)
                     st.markdown(answer_text)
 
                     # Nagy nyelvi modell üzenetének elmentése
                     st.session_state.messages.append({"role": "assistant", "content": answer_text})
-
+                    st.rerun()
 
 # Vizualizáció
 with col2:
@@ -70,3 +72,14 @@ with col2:
         if clean_code:
             # st_mermaid(clean_code, height=600)
             render_custom_mermaid(clean_code, height=550)
+
+    if "image" in st.session_state:
+        st.download_button(
+                label = "Ábra letöltése",
+                data = st.session_state.image,
+                file_name = "mermaid_abra.png",
+                mime = "image/png",
+                icon=":material/download:",
+            )
+    #if st.session_state.image == "":
+        #st.info("Még nincs ábra")

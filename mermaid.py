@@ -6,6 +6,8 @@ import re
 # HTML belenyúlása
 import streamlit.components.v1 as components
 
+import requests
+
 # szövegből --> link
 def mermaid(graph):
     # kód tisztítása, helyettesítés és csere
@@ -15,7 +17,8 @@ def mermaid(graph):
     match = re.search(r"```[Mm]ermaid\n(.*?)```", graph, re.DOTALL)
     if not match:
         st.warning("Nem található Mermaid diagram a válaszban.")
-        return
+        # Itt is bájtban
+        return b""
 
     clean_code = match.group(1).strip()
     # Debugra
@@ -25,8 +28,14 @@ def mermaid(graph):
     base64_bytes = base64.urlsafe_b64encode(graphbytes) # URl alakítás
     base64_string = base64_bytes.decode("ascii") # visszalakaítás (dekódolás)
 
-    url = f"https://mermaid.ink/svg/{base64_string}"
-    st.image(url, use_container_width=True)
+    url = f"https://mermaid.ink/img/{base64_string}"
+    response = requests.get(url)
+    if response.status_code == 200:
+        return response.content
+    else:
+        # Hibás volt bájtot adunk vissza
+        return b""
+    #st.image(url, use_container_width=True)
 
 def merm(graph):
     match = re.search(r"```mermaid\n(.*?)```", graph, re.DOTALL)
