@@ -1,0 +1,434 @@
+import os
+import json
+import re
+import time
+from uuid import uuid4
+
+from google import genai
+
+from sentence_transformers import CrossEncoder
+
+# FlashRank import
+from langchain_classic.retrievers import ContextualCompressionRetriever
+from langchain_classic.retrievers.document_compressors import CohereRerank
+from langchain_community.document_compressors import FlashrankRerank
+
+# Ragas
+from ragas import evaluate
+from ragas.metrics import Faithfulness, ContextRecall, AnswerRelevancy, ContextPrecision, AnswerCorrectness
+from ragas.llms import llm_factory, LangchainLLMWrapper
+from datasets import Dataset
+from ragas.embeddings import LangchainEmbeddingsWrapper
+from ragas.run_config import RunConfig
+
+
+from langchain_community.document_loaders import PyPDFDirectoryLoader
+from langchain_chroma import Chroma
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_google_genai import GoogleGenerativeAIEmbeddings
+
+
+from sema import mermaid_sema
+from prompts import prompts
+
+
+from langchain_google_vertexai import ChatVertexAI, VertexAIEmbeddings
+
+
+lassito_config = RunConfig(
+    max_workers=1,
+    max_retries=15,
+    max_wait=90 # Maximum 60 másodpercet várhat két újrapróbálkozás között
+)
+
+
+
+# Konfiguráció
+DATA_PATH = r"data"
+CHROMA_PATH = r"chroma_db"
+api_key = "api kulcs ide"
+model_name = "gemini-2.5-flash-lite"
+
+
+# LLM és embedding beállítása
+client = genai.Client(api_key=api_key)
+
+PROJECT_ID = "project-34aebd00-52d8-43c8-a60"
+REGION = "us-central1"
+
+
+# RAGAS LLM - Geminivel
+vertex_llm = ChatVertexAI(
+    model_name="gemini-2.5-flash",
+    project=PROJECT_ID,
+    location=REGION,
+)
+
+
+ragas_llm = LangchainLLMWrapper(vertex_llm)
+
+# RAGAS Embeddings – Gemini embedding
+embeddings_model = GoogleGenerativeAIEmbeddings(
+    model="gemini-embedding-001",
+    google_api_key=api_key
+)
+ragas_embeddings = LangchainEmbeddingsWrapper(embeddings_model)
+
+
+# Teszt kérdések
+test_samples = [
+    {
+        "question": "Mi az adatkapcsolati réteg feladatai?",
+        "ground_truth": "Az adatkapcsolati réteg feladatai közé tartozik a felsőbb rétegbeli protokollok kezelése, a folyamszabályozás, valamint a szomszédos csomópontok közötti megbízható adatátvitel biztosítása. További kulcsfontosságú feladata a keretezés, a keretekre vonatkozó ellenőrzőösszeg számítása, a helyi hálózaton való címzés, valamint a közeghozzáférés (multiple access) vezérlése."
+    },
+    {
+        "question": "Milyen IP címosztályok léteznek?",
+        "ground_truth": "Az IP-címosztályokat az osztályazonosító prefix határozza meg. Az A, B és C osztályok egyedi címzésre (unicast) szolgálnak: az A osztály prefixe 0, a B osztályé 10, a C osztályé pedig 110. A D osztály (prefix: 1110) a többes címzésre (multicast) fenntartott tartomány 224.0.0.0-tól 239.255.255.255-ig, míg az E osztály (prefix: 1111) kísérleti célokra fenntartott 240.0.0.0-tól 255.255.255.255-ig. Speciális címnek számít a hálózat címe (ahol a host azonosító csupa 0) és a broadcast cím (ahol a host azonosító csupa 1)."
+    },
+    {
+        "question": "Milyen szállítási protokollok léteznek és mi a különbség köztük?",
+        "ground_truth": "A szállítási réteg két alapvető protokollja az UDP (User Datagram Protocol) és a TCP (Transmission Control Protocol). Az UDP jellemzője, hogy összeköttetésmentes, „best-effort” típusú, megbízhatatlan átvitelt nyújt, nincs nyugtázás és sorrendhelyesség, viszont alacsony a késleltetése. Ezzel szemben a TCP kapcsolat-orientált, megbízható, sorrendhelyes és hibamentes szállítást biztosít (nyugtákkal és újraküldéssel), aminek ára a nagyobb késleltetés. Mindkét protokoll feladata a multiplexelés, amit a portszámok használatával valósítanak meg."
+    },
+    {
+        "question": "Sorold fel a legfontosabb TCP feletti alkalmazásokat, protokollokat és a hozzájuk tartozó portszámokat!",
+        "ground_truth": "A TCP protokoll felett számos alkalmazás és protokoll működik, melyek tipikus szerveroldali portszámai a következők: a fájlátvitelhez használt FTP (20-as port az adathoz, 21-es a vezérléshez), a távoli elérést biztosító SSH (22) és Telnet (23), valamint az e-mail küldésért felelős SMTP (25) és annak biztonságos változata, az SMTPS (465). A webes forgalmat a HTTP (80) és a biztonságos HTTPS (443) bonyolítja. A névfeloldást végző DNS az 53-as portot használja (TCP-n és UDP-n egyaránt). A levelek letöltéséhez a POP3 (110) és POP3S (995), míg a levelek eléréséhez az IMAP4 (143) és IMAP4S (993) protokollok tartoznak."
+    },
+    {
+       "question": "Mi a különbség az analóg, a digitális és a bináris jelek között?",
+       "ground_truth": "Minden fizikai közegen megjelenő jel valójában analóg, azaz folytonos jel, amely végtelen sok lehetséges értékkel rendelkezik (akkor is, ha korlátos a tartománya). Egy jel akkor digitális, ha annak értelmezzük: fontos jellemzője, hogy véges sok lehetséges értéke van (diszkrét állapotok), amelyekhez viszonyítunk. A bináris jel ennek egy konkrét formája, amely összesen két lehetséges értéket vehet fel (például 0 vagy 1, igaz vagy hamis, fekete vagy fehér pixel)."
+    },
+    {
+        "question": "Sorold fel az ISO/OSI referenciamodell rétegeit és azok főbb jellemzőit!",
+        "ground_truth": "Fizikai réteg: A fizikai közeg specifikációjáért és a bitek továbbításáért felelős (vonal kódolás, moduláció). Adatkapcsolati réteg: Feladata a bitsorozatok „keretezése”, a fizikai címek (MAC) kezelése és a közeghozzáférés vezérlése. Jellemző eszközei a bridge és a switch. Hálózati réteg: Egyedi linkek összefűzésével végpontok közötti csatornát hoz létre, logikai címzést (IP) és útvonalkeresést végez. Jellemző eszközei az útvonalválasztók (routerek). Szállítási réteg: Végpontok közötti hibamentes összeköttetést (hibás csomagok ismétlése, sorrend helyreállítása) és forgalomszabályozást biztosít. Viszonyréteg: A kapcsolat irányának és az összeköttetés felépítésének/lebontásának kezeléséért felel. Megjelenítési réteg: A felhasználói adatok ábrázolásával, adattömörítéssel és titkosítással foglalkozik. Alkalmazási réteg: A végpontokon futó alkalmazási programokat és protokollokat (pl. HTTP, FTP, SMTP) tartalmazza, melyek a felhasználót szolgálják ki."
+    },
+    {
+       "question": "Mi az routing?",
+       "ground_truth": "Az a mechanizmus, mely segítségével a szállítandó információ a megfelelő úton kerül továbbításra a végpontok között. Szűkebb értelemben magát az útvonalválasztást jelenti, tágabb értelemben pedig beleértjük a csomagok csomópontokon belüli továbbítását is (forward). A routing magában foglalja az útvonalválasztó módszereket, algoritmusokat és azokat megvalósító protokollokat. Legfőbb kihívásai, hogy a hálózat felépítése általában nem állandó (ezért adaptív módra van szükség), valamint a hálózat nagy mérete miatt gyakran nincs pontos és aktuális információ a teljes hálózat állapotáról.",
+    },
+    {
+        "question": "Mi az a PCM, és melyek az A-D átalakítás főbb lépései?",
+        "ground_truth": "A PCM (Pulse Code Modulation, impulzuskód-moduláció) egy eljárás, amelyet beszéddigitalizálásra (kódolás-dekódolás: kodek) használnak, és a mai A/D átalakítás alapját képezi. Célja egy bitsorozat előállítása egy folytonos feszültség-idő függvényből. Az A-D átalakítás lépései: sávszűrés, mintavétel, kvantálás és kódolás. A folyamat fordítottja a D-A átalakítás, amely a kvantálás inverz karakterisztikájával és sávszűréssel (simítás) állítja vissza az eredetihez nagyon hasonló jelet."
+    },
+    {
+        "question": "Mi az elektronikus levelezésnek a fő alkotóelemei?",
+        "ground_truth": "User Agent: Ez a komponens felelős a levelek írásáért, szerkesztéséért és olvasásáért. Példák rá: Mozilla Thunderbird, Outlook, vagy a Mail alkalmazás. A kimenő és bejövő leveleket a szerveren tárolja. Levélszerverek: Itt található a felhasználó postaládája, amely tartalmazza a bejövő leveleket. A szerveren van a kimenő levelek várólistája is. Levelező protokoll (SMTP): A Simple Mail Transfer Protocol felelős az e-mailek továbbításáért a levélszerverek között. Ebben a folyamatban a küldő a kliens, a fogadó pedig a szerver."
+    },
+    {
+      "question": "Milyen tényezők befolyásolják a beszédminőséget a csomagkapcsolt hálózatokban, és mik ezek határértékei?",
+      "ground_truth": "A beszédminőséget befolyásoló fő tényezők: Késleltetés (Delay): Megengedett maximum: Körülbelül 150 ms. Késleltetés-ingadozás (Jitter / Packet Delay Variance): Megengedett maximum: Néhány tíz ms. Csomagvesztés (Packet Loss): Megengedett maximum: Néhány %, de csak akkor tolerálható, ha: A kiesett beszédszegmensek rövidek (kb. 10 ms nagyságrendűek). A vesztések véletlenszerűen oszlanak meg az időben. Fontos megjegyzés, hogy a Video over IP esetében még ennél is szigorúbbak a követelmények."
+    },
+    {
+      "question": "Sorold fel az érpáras kábelkategóriákat és jellemzőiket, valamint foglald össze az optikai szálak fő tulajdonságait!",
+      "ground_truth": "Cat3: Főleg beszédátvitelre (telefon) és riasztóknak használják. (Elavult) 10 Mb/s-os Ethernet átvitelére képes. Cat5: 100 Mb/s sebességű Ethernet hálózatokhoz. Cat5e: 1 Gb/s sebességű Ethernet hálózatokhoz. Cat 6, 6a: 10 Gb/s sebességű Ethernet hálózatokhoz. Fontos jellemző: A kategóriák visszafele kompatibilisek egymással. Optikai szálak tulajdonságai: Működési elv: Nem elektromos jelet, hanem fényt továbbítanak (üveg vagy műanyag szálban), amely a szálon belül marad. Adója LED vagy lézer lehet. Sávszélesség: Hatalmas kapacitás (több tíz THz, akár több száz Gb/s – Tb/s sebesség). Csillapítás: Nagyon alacsony, akár 10 km-es távolság is áthidalható erősítő nélkül. Fizikai jellemzők: Vékony és könnyű, de viszonylag sérülékeny. Ára nem drágább a réznél. Zavartűrés: Nem zavarja az elektromágneses sugárzás és nem kelt EM sugárzást (nehezebb lehallgatni, zavartűrőbb)."
+    },
+    {
+      "question": "Hogyan terjednek a rádióhullámok és melyek a fő terjedési módok jellemzői?",
+      "ground_truth": "A rádióhullámok nagyban függnek a hullám frekvenciájától, 3 fő terjedési tulajdonsága: a talajhullámok, térhullámok, és az egyenes vonalú terjedés.Talajhullámok (Ground Wave Propagation): A Föld felszínét követő hullámok, amelyek 2 MHz frekvencia alatt jellemzőek. A látótávolságon túl is követik a felszínt; példa rá az AM rádió (pl. Kossuth: 540 kHz). Térhullámok (Sky Wave Propagation): Az ionoszféráról és a Földről is visszaverődnek, így akár több ezer kilométert is képesek áthidalni. Jellemző frekvenciatartományuk 2–30 MHz. Egyenes vonalú terjedés (Line-of-Sight Propagation): A 30 MHz feletti hullámokra jellemző, ahol az adónak és a vevőnek látnia kell egymást (mint a fény esetében). Előfordulhat visszaverődés, elhajlás vagy akadályon való áthaladás is."
+    },
+    {
+      "question": "Hogyan működik a címfeloldás ARP-val és mi az az ARP tábla?",
+      "ground_truth": "A címfeloldás folyamata ARP (Address Resolution Protocol) segítségével és az ARP tábla szerepe a hálózati kommunikációban az alábbiak szerint foglalható össze: Az ARP protokoll akkor lép működésbe, amikor egy hálózati eszköz (például „A” gép) ismeri a céleszköz („B” gép) IP-címét, de a kommunikációhoz szüksége van annak fizikai MAC-címére is. A folyamat két fő lépésből áll: ARP Request (Kérés): „A” eszköz egy üzenetet küld a hálózatnak, amelyben megadja a saját MAC- és IP-címét, valamint a céleszköz („B”) IP-címét. Mivel a cél MAC-címe ismeretlen, a cél hardvercíme (Target HA) 00:00:00:00:00:00. A kérést broadcast üzenetként küldi el, a keret fejlécében a cél MAC-címe FF:FF:FF:FF:FF:FF. ARP Reply (Válasz): „B” eszköz felismeri a saját IP-címét a kérésben, és válaszol. A válasz tartalmazza „B” saját MAC-címét. Ebben az üzenetben a cél már „A” eszköz konkrét MAC- és IP-címe lesz. Az ARP tábla, amely adatkapcsolati rétegbeli és IP címek párosát tárolja. Bejegyzéstípusok: Statikus: Manuálisan felvitt bejegyzés. Dinamikus: Az ARP címfeloldás eredményeként automatikusan jön létre. Gyorsítótár (cache) funkció: A tábla célja, hogy ne kelljen mindig lekérdezni a folyamatot. Élettartam: A dinamikus bejegyzések egy bizonyos idő után elévülnek és automatikusan törlődnek a táblából."
+    },
+    {
+        "question": "Mik a leggyakoribb HTTP parancsok?",
+        "ground_truth": "A leggyakoribb HTTP parancsok a következők: GET <URL>: Egy adott URL-en található tartalom lekérésére szolgál. HEAD: Hasonló a GET-hez, de az adatok helyett csak a metaadatokat adja vissza a szerver. POST: segítségével a kliens adatokat tud küldeni a szervernek. PUT: A POST-hoz hasonlóan adatküldésre, jellemzően fájlfeltöltésre alkalmas. DELETE: Egy adott URL-en található tartalom törlését kezdeményezi."
+    },
+    {
+        "question": "Mi az a DHCP, mik az előnyei, és hogyan jelenik meg IPv6 környezetben?",
+        "ground_truth": "A DHCP (Dynamic Host Configuration Protocol) segítségével IP-beállításokat oszthatunk ki vele dinamikusan. Előnyeihez tartozik, hogy a klienseket egyszerű beállítani, központilag módosítani és jellemző a mobilitás a hálózatok között. Fontos megjegyezni, hogy IPv6-ban is megjelenik: Stateless Address Autoconfiguration (SLAAC)"
+    },
+    {
+        "question": "Mondjál néhány példát az élő multimédia streamingre!",
+        "ground_truth": "Az élő multimédia streamingre példák a következők: internetes rádió, tv, élő sportközvetítések. Streaming a lejátszási puffer (playback puffer) és néhány száz ms késleltetés is elviselhető. Korlátozott interaktivitás: a gyors vissza, pillanat állj lehetséges gyors előre nyilván lehetetlen"
+    },
+    {
+        "question": "Sorold fel a P2P generációkat és jellemzőiket példákkal!",
+        "ground_truth": "A P2P hálózatok fejlődése három generációra osztható: 1. generáció: Hibrid modell központi szerverrel, ahol a keresés centralizált (példa: Napster). 2. generáció: Teljesen elosztott architektúra központi szerver nélkül, ami robusztusabb, de a keresési forgalom eláraszthatja a hálózatot (példa: Gnutella). Ennek javítása az ultrapeerek használata. 3. generáció: Párhuzamos kommunikáció egyszerre több csomóponttal a hatékonyság növelése érdekében (példa: BitTorrent)."
+    },
+    {
+      "question": "Mik a késleltetés és a csomagvesztés fő okai?",
+      "ground_truth": "A késleltetés oka, hogy a csomagok sorban állnak a csomóponti gépek tárolóiban. A csomagvesztésnél, pedig a csomagok beérkezési sebességétől függ, hogy milyen a kimenő link átbocsátóképessége. A csomagok késésének négy fő oka van: feldolgozás a csomópontban itt történik a hibaellenőrzés és a kimenő link meghatározása, a sorbanállás, ahol várakozásni kell az adott kimenő link továbbítására és a router tehreltségétől, az adási időtől, ahol az R az adatátviteli sebességet méri (bit/s), az L pedig a csomaghossz (bit), számítás = L/R, illetve az utolsó ok at a terjedési idő, ahol a kis d a fizikai hossz, s a terjedési sebbeség az átviteli közegben (2x10^8-3x10^8 m/sec) és a számítása d/s"
+    },
+    {
+      "question":"Hogyan egyeztessük az alkalmazások igényeit és a hálózat problémáit?",
+      "ground_truth": "Az alkalmazások igényeinek és a hálózat korlátainak összehangolásához, az alapvető csomagkommunikációs és végpontok közötti kapcsolatokat kezelő protokollok mellett kellenek úgynevezett – szolgáltatásminőséget (QoS – quality of service) biztosító módszerek és protokollok. Erőforrás-foglalás: A hálózat csomóponti képességeit és a link-kapacitásokat lefoglaljuk egy adott kommunikációs viszonylat (session) számára. Csomagok megjelölése: A csomagokat a különböző igényeik szerint jelöléssel látjuk el, így a csomópontok megfelelően módon kezelhetik őket (prioritás a beszédcsomagok számára)"
+    },
+    {
+        "question": "Mi az a csomagvesztés?" ,
+        "ground_truth": "Először is a csomagoknál a sor (tár, puffer) kapacitása véges. A csomagvesztés akkor történik meg, amikor a csomag olyankor érkezik, amikor a puffer tele van, emiatt eldobásra kerül. Az elveszett csomagok vagy újraküldésre kerülnek, vagy nem. Csomagvesztésről akkor is beszélünk, amikor a hibaellenőrzés a csomagot hibásnak találja, ilyenkor a bithibák az átvitel során a nem ideális linket miatt, zajok. zavarok torzítások stb jönnek létre."
+    },
+    {
+        "question": "Sorold fel a P2P előnyeit és hátrányait is!",
+        "ground_truth": "A P2P az FTP, HTTP, SMTP- vel ellentétben nem szerver-kliens kapcsolatú, hanem mindenki lehet szerver és kliens is egyaránt. Előnyeihez tartozik a robusztusabbság és jobban skálázódik. Hátránya: a nagya sávszélesség igénye (megoldás: P2P caching), illetve P2P forgalom blokkolása és a rosszindulatú szeletek injektálása (megoldás: BitTorrent titkosítása). Fontos megjegyezni, hogy az internet forgalmának komoly hányadát a fájlcserélő (főlépp a BitTorrent) hálózatok adják, mondjuk csökkenőben és a streamingnél már népszerűbb"
+    },
+    {
+        "question": "Sorold fel a mobiltelefon-hálózatokat!",
+        "ground_truth": "A mobiltelefon hálózatok a következők: Kezdeti mobilhálózatok (0G), analóg cellás mobilhálózatok (1G), GSM (2G), UMTS (3G), LTE (4G), és 5G"
+    },
+    {
+        "question": "Mi az az interferencia?",
+        "ground_truth": "Az interferencia a hullámok összeadódása amikor a rádióhullámok esetében, akkor történik meg, ha több adó jele összeér, ami azt jelenti, hogy térben (a lefedettségi területek átfednek), időben (egyszerre adnak) és frekvenciában (azonos frekveciában adnak). Ez alapvetően káros jelenség, tönkreteszi a rádiókommunikációt az adott helyen, időben, frekvenciában"
+    },
+    {
+        "question": "Milyen összetevők kellenek egy igazán autentikus olasz pizzatészta elkészítéséhez?",
+        "ground_truth": "Sajnos erről nem találtam információt a tananyagban."
+    },
+    {
+        "question": "Hogyan befolyásolja a tengerszint feletti magasság a víz forráspontját a főzés során?",
+        "ground_truth": "Sajnos erről nem találtam információt a tananyagban."
+    },
+    {
+        "question": "Melyik korszakot tartod a legérdekesebbnek a magyar történelemben, és miért?",
+        "ground_truth": "Sajnos erről nem találtam információt a tananyagban."
+    },
+    {
+        "question": "Milyen környezeti feltételekre van szüksége egy orchideának ahhoz, hogy újra virágozzon?",
+        "ground_truth": "Sajnos erről nem találtam információt a tananyagban."
+    },
+    {
+        "question": "Szerinted melyik a legfontosabb jellemvonás, ami meghatározza egy ember jellemét?",
+        "ground_truth": "Sajnos erről nem találtam információt a tananyagban."
+    },
+    {
+        "question": "Sorolj fel néhány IPTV szolgáltatást!",
+        "ground_truth": "Az IPTV szolgáltatások a következők lennének: Élőv TV és rédió adás továbbítása IP hálózaton keresztül, Digital Rights Management (DRM), Electronic Program Guide (EPG) -műsorújság, TeleText,  élő adás felvétele: kliens-oldalon (set-top-box) vagy szerver oldalon (Catch up Tv), kép a képben (RP, Picture in Picture), time shifting, egyidőben több felvétel + élő adás ( az internet szolgáltatás sávszélessége korlát lehet), programozott felvétel műsorújság alapján, Video on Demand - videótéka (TV műsorok, filmek, sorozatok, stb), alkalmazások futtatása (hírek, időjárás, árfolyamok, messaging stb)."
+    },
+    {
+        "question": "Mi az a Teletext?",
+        "ground_truth": "A Telexet egy mára elavult szövegtovábbítási rendszer, aminek a jellemzői a következők: az analóg TV adásokhoz készült, TV csatornákhoz rendelve, mai nap is létezik."
+    },
+    {
+        "question": "Mi jelent az IGMP?",
+        "ground_truth": "Az IGMP az nem más, mint a Internet Group Management Protocol rövidítése. Az IGMP az a multicast csoporttagságok menedzsmentje hálózaton belül, az IGMP üzenetváltás az IP végpontok és a helyi útválasztó között történik. OSI besorolása: az IP protokollkészlet része, a hálózati réteghez tartozik. Szereplői: IGMP host - IGMP querier."
+    },
+    {
+        "question": "Milyen média kóolások vannak az IPTV médiafolyamnál?",
+        "ground_truth": "A médiakódolások a következők: Constrant Bitrate (CBR) üzemmód, ami a médiakódoló a kimenetén konstans bitsebességgel állítja elő a tömörített médiafolyamot. Ebben az üzemmódban a médiatartalom pillanatnyi komplexitásától független az aktuális tömörítési arány. A másik a Variable Bitrate (VBR) üzemmód, aminél a médiakódoló a kimenetén a médiatartalom komplexitásával arányos, változó bitsebességgel állítja elő a tömörített médiafolyamot."
+    },
+    {
+        "question": "Mi az a H.264 és milyen kerettípusai vannak?",
+        "ground_truth": "A H.264 egy vesztéseges tömörítési eljárás, konstanst vagy változó bitsebességen, illetve képcsoportok (Group of Pictures). A kerettípusai a következők: I-frame (intra coded frame) : A képkocka előállításához nincs szükség további keretekre. A képcsoport kezdő kerete.  P-frame (predictive coded picture): Korábbi I vagy P keretet használ referenciaként, a változást mozgásvektorokkal írja le. B-frame (bi-predictive coded picture):Korábbi és későbbi I vagy P kereteket is felhasznál referenciaként "
+    },
+    {
+        "question": "Milyen faktorok határozzák meg a csatornaváltás idejét (Zap Time)?",
+        "ground_truth": "Csoportváltás (IGMP leave és join), Multicast disztribúciós fa bővítése (PIM routing), Végponti pufferelés (playout buffering), Következő kulcs videokeret (I frame) bevárása."
+    },
+    {
+        "question": "Mi a különbség az infrastruktúra alapú és az ad hoc üzemmód között a bázisállomások és a kommunikáció szempontjából?",
+        "ground_truth": "Az infrastruktúra alapú üzemmód: bázisállomás van a vezetékes és vezeték nélküli hálózatok között. Ad hoc (alkalmi) üzemmód: nincsenek bázisállomások; a csomópontok közvetlenül egymással kommunikálnak."
+    },
+    {
+        "question": "Melyik kategóriába tartozik a Wi-Fi mesh technológia az infrastruktúra és az ugrások száma alapján, és mi jellemzi a működését?",
+        "ground_truth": "Kategória: van infrastruktúra / több ugrásos. Jellemző: a csomópontok több ugráson át egymás csomagját továbbíthatják a bázisállomáshoz (és onnan jut az Internetre)."
+    },
+    {
+        "question": "Mi a közös és mi a különbség a Bluetooth és a MANET hálózatok között a táblázat osztályozása szerint?",
+        "ground_truth": "Közös: mindkettőnél nincs infrastruktúra (nincs bázisállomás és nincs Internetkapcsolat). Különbség: a Bluetooth egy ugrásos, míg a MANET több ugrásos technológia (a csomópontok több ugráson át továbbíthatják egymás csomagját)."
+    },
+    {
+        "question": "Melyik nemzetközi szabványcsaládba tartozik a Wi-Fi, és milyen típusú hálózatot jelöl?",
+        "ground_truth": "Szabványcsalád: IEEE 802.11. Hálózat típusa: Wireless LAN (vezeték nélküli helyi hálózat)"
+    },
+    {
+        "question": "Miért alakult ki az öregedés folyamata az élővilágban, ha az evolúció alapvető célja az egyed túlélése és a génjei továbbörökítése?",
+        "ground_truth": "Sajnos erről nem találtam információt a tananyagban."
+    },
+    {
+        "question": "Vajon a szubjektív idő miért tűnik felgyorsultnak, ahogy öregszünk, míg gyermekkorunkban egyetlen nyári szünet is egy örökkévalóságnak tűnt?",
+        "ground_truth": "Sajnos erről nem találtam információt a tananyagban."
+    },
+    {
+        "question": "Mik a VoIP kihívásai?",
+        "ground_truth": "A VoIP kihívásai pontosan az alábbiak: A VoIP alapú hálózatoknál meg kellett teremteni mindazt, amit a hagyományos PSTN/ISDN/mobil (pl. GSM/UMTS) hálózatoknál korábban már „bombabiztosra” terveztek. Ez magában foglalja a magas rendelkezésre állást, melyet nagy megbízhatóságú eszközökkel és tartalékolással érnek el, az alaposan tesztelt protokollokat, valamint a zárt hálózat nyújtotta betörésvédelmet és a sok-sok év tapasztalatát. Kiemelt kihívás továbbá az áramkörkapcsolásnak köszönhető garantált szolgáltatásminőség biztosítása, valamint az olyan többletszolgáltatások fenntartása, mint például a segélyhívás egységes számmal. A tét ugyanis nagy: a megbízható telefonszolgáltatáson nap mint nap életek múlnak."
+    },
+    {
+        "question": "Mit rövidít a SIP és mit kell tudni róla?",
+        "ground_truth": "A SIP a Session Initiation Protocol rövidítése, amely egy IETF szabvány (RFC 3261 és kapcsolódó RFC-k). Ez egy eredetileg 1999-ben készült jelzésprotokoll, amelyet való idejű kapcsolatok (session) létrehozására, menedzselésére és bontására használnak két vagy több fél között, például beszéd- és videohívásoknál, vagy azonnali üzenetküldésnél. Jellemzője, hogy szöveges és HTTP-szerű, a médiafolyam pedig külön megy, nem SIP-en (főleg RTP-n). Működése UDP/TCP/SCTP (Stream Control Transmission Protocol) felett történik."
+    },
+    {
+        "question": "Mit rövidít az SDP és mit kell tudni róla?",
+        "ground_truth": "A Session Description Protocol (SDP) : Az SDP (Session Description Protocol) az RFC 8866 szabványon alapul, amely a 2021-es frissítés, de eredetileg az 1998-as RFC 2327-re nyúlik vissza. Elsődleges feladata a multimédia kapcsolat leírása még a kapcsolat tényleges létrehozása előtt. A protokoll legfontosabb tartalmi elemei közé tartozik a média típusa (például hang vagy videó), az alkalmazott átviteli protokoll meghatározása (mint az RTP), a média formátuma (például a használt kodek), valamint a média elérhetősége, amely rögzíti a szükséges IP-címet és portszámot. A dián látható példa szemlélteti az üzenet pontos felépítését olyan paraméterekkel, mint a verziószám, a kapcsolat adatai és a médiaattribútumok."
+    },
+    {
+        "question": "Mik a SIP hálózat elemei?",
+        "ground_truth": "A SIP hálózati elemek az alábbiak: User agent, UA (felhasználói ügynök): Ez a végpont, amely két szerepkört tölthet be. Az UAC (UA Client) kérést küld, míg az UAS (UA Server) kérést fogad és válaszol meg. Fontos jellemzőjük, hogy a szerepek cserélődnek, és csak egy tranzakció idejére állandóak. Proxy szerver: Ennek az elemnek a hívás útválasztása a fő feladata. Átirányító szerver (Redirect server): Hasonlóan a HTTP-hez, a kérő felet egy másik végponthoz irányítja át. Regisztráló szerver (Registrar server): Hozzá regisztrál be az UA, a szerver pedig megjegyzi annak IP-címét. Átjáró (Gateway): Kapcsolatot biztosít más hálózatok felé, például a PSTN (Public Switched Telephony Network) irányába, bár a dia megjegyzi, hogy hagyományos PSTN hálózat ma már nem nagyon van."
+    },
+    {
+        "question": "Mi tartozik a DHCP egyéb alkalmzásai közé?",
+        "ground_truth": "DHCP hibatűrés: Több DHCP szerver használata egy hálózaton belül, de fontos a diszjunkt IP-címtartományok osztása. DHCP kiterjesztése több hálózati szegmensre: Mivel a routerek alapértelmezés szerint nem engedik át a DHCP üzeneteket, megoldásra van szükség. A routerekre úgynevezett „DHCP Relay Agent”-et telepítenek, amely továbbítja a DHCP forgalmat a DHCP szerverek és a kliensek között a különböző szegmenseken át."
+    },
+    {
+        "question": "Melyik a világ legmélyebb tava?",
+        "ground_truth": "Sajnos erről nem találtam információt a tananyagban."
+    },
+    {
+        "question": "Ki festette a híres Leány gyöngy fülbevalóval című képet?",
+        "ground_truth": "Sajnos erről nem találtam információt a tananyagban."
+    },
+    {
+        "question": "Melyik bolygónak van a legtöbb holdja a Naprendszerben (a jelenlegi csillagászati ismereteink szerint)?",
+        "ground_truth": "Sajnos erről nem találtam információt a tananyagban."
+    },
+    {
+        "question": "Mi az az NMT, és melyek a rendszer legfontosabb jellemzői a magyarországi adatokkal együtt?",
+        "ground_truth": "Az NMT (Nordic Mobile Telephone System, azaz északi mobil távbeszélő rendszer) jellemzői az alábbi mondatokba foglalhatóak: Az NMT egy Skandináviából induló technológia, amely 1981-től volt jelen, Magyarországon pedig 1990-től 2003. június 30-ig üzemelt Westel 0660 néven. A rendszerre jellemző volt a 450 MHz körüli frekvenciasáv és a viszonylag nagy, 30-50 km átmérőjű cellák alkalmazása. A szolgáltatás minőségét a gyenge beszédátvitel és a kevés szolgáltatásfajta jellemezte, emellett a használata kifejezetten drága volt. Fontos technikai különbség a mai rendszerekhez képest, hogy nem volt SIM kártya, így a hívószám közvetlenül a készülékhez tartozott."
+    },
+    {
+        "question": "Mik a legfontosabb GSM szolgáltatások?",
+        "ground_truth": "A legfontosabb GSM szolgáltatások az alábbiak: A GSM hálózat alapvető szolgáltatása a beszédátvitel, amelynél a használt kodek sebessége kezdetben 13 kb/s volt (később 5,6 kb/s is), ami egyfajta kompromisszumot jelentett a viszonylag gyenge hangminőség és a jobb frekvenciakihasználtság között. A rendszer olyan kényelmi funkciókat is biztosít, mint a hívószámkijelzés, a hívásátirányítás, a hangposta és a hívásvárakoztatás. Az üzenetküldési szolgáltatások közé tartozik a maximum 160 karakteres SMS (Short Message Service), valamint a 2002-től elérhető MMS (Multimedia Messaging Service), amely képet, írott szöveget és hangot is tartalmazhat. Az adatátvitel sebessége kezdetben 9,6 kb/s volt, ami később 14,4 kb/s-ra, majd folyamatosan tovább nőtt. Mára már kihalt WAP (Wireless Application Protocol) technológia."
+    },
+]
+
+
+
+
+# Chroma vektorizálás
+if not os.path.exists(CHROMA_PATH) or not os.listdir(CHROMA_PATH):
+    print("PDF fájlok beolvasása és vektorizálása...")
+    loader = PyPDFDirectoryLoader(DATA_PATH)
+    raw_documents = loader.load()
+
+
+    text_splitter = RecursiveCharacterTextSplitter(
+        chunk_size=1200,
+        chunk_overlap=300,
+        length_function=len,
+        is_separator_regex=False,
+    )
+    chunks = text_splitter.split_documents(raw_documents)
+    uuids = [str(uuid4()) for _ in range(len(chunks))]
+
+    vector_store = Chroma.from_documents(
+        documents=chunks,
+        embedding=embeddings_model,
+        persist_directory=CHROMA_PATH,
+        collection_name="tananyagok",
+        ids=uuids
+    )
+else:
+    print("Meglévő Chroma adatbázis betöltése...")
+    vector_store = Chroma(
+        collection_name="tananyagok",
+        embedding_function=embeddings_model,
+        persist_directory=CHROMA_PATH,
+    )
+
+
+# Segédfüggvény retry logikával
+def generate_with_retry_vertex(llm_model, prompt_text, schema, retries=5, wait_sec=8):
+    structured_llm = llm_model.with_structured_output(schema)
+    for attempt in range(retries):
+        try:
+            response = structured_llm.invoke(prompt_text)
+            return response
+        except Exception as e:
+            if "429" in str(e) or "503" in str(e):
+                print(f"[{attempt+1}/{retries}] Limit hiba -> várás {wait_sec}s...")
+                time.sleep(wait_sec)
+            else:
+                print(f"Váratlan hiba: {e}")
+                raise e
+    return {"answer": "Hiba történt a generálás során."}
+
+# Reranking berakása FlashRank
+#compressor = FlashrankRerank(top_n=10)
+
+retriever = vector_store.as_retriever(
+    search_type="mmr",
+    search_kwargs={"k": 15, "fetch_k": 30}
+)
+
+# Reranking berakása FlashRank
+#compression_retriever = ContextualCompressionRetriever(
+#    base_compressor=compressor,
+#    base_retriever=retriever
+#)
+
+
+# Reranking berakása Cohere
+#compressor = CohereRerank(
+#    cohere_api_key="",
+#    model="rerank-v4.0-pro",  # A legújabb modell
+#    top_n=10
+#)
+
+#compression_retriever = ContextualCompressionRetriever(
+#    base_compressor=compressor, base_retriever=retriever
+#)
+
+rerank_model = CrossEncoder("cross-encoder/ms-marco-MiniLM-L-6-v2")
+def reranker(query, docs, top_n):
+    all_pairs = [(query, doc.page_content) for doc in docs]
+    scores = rerank_model.predict(all_pairs)
+    score_pairs = list(zip(docs, scores))
+    score_sorted = sorted(score_pairs, key=lambda x: x[1], reverse=True)
+    return [doc for doc, score in score_sorted[:top_n]]
+
+
+# Feldolgozás
+results = []
+
+for i, item in enumerate(test_samples):
+    q = item["question"]
+    print(f"\n[{i+1}] Kérdés: {q}")
+
+    #docs = compression_retriever.invoke(q)
+    docs = retriever.invoke(q)
+    rerank_docs = reranker(q, docs, 10)
+    contexts = [doc.page_content for doc in rerank_docs]
+    context_text = "\n\n---\n\n".join(contexts)
+    prompt = prompts(q, context_text, "Mermaid")
+
+    try:
+        adatok = generate_with_retry_vertex(vertex_llm, prompt, mermaid_sema)
+        answer = adatok.get("answer", "")
+        print("Generálás sikeres")
+    except Exception as e:
+        print(f"Hiba a generálás során: {e}")
+        answer = ""
+
+    results.append({
+        "id": i,
+        "question": q,
+        "answer": answer,
+        "contexts": contexts,
+        "ground_truth": item["ground_truth"],
+        "top_context": contexts[0] if contexts else "",
+    })
+
+    time.sleep(2)
+
+
+# Eredmények mentése
+with open("results.json", "w", encoding="utf-8") as f:
+    json.dump(results, f, indent=2, ensure_ascii=False)
+
+
+# RAGAS Kiértékelés
+print("\nRAGAS kiértékelés indítása...")
+ds = Dataset.from_list(results)
+score = evaluate(
+    ds,
+    metrics=[
+        Faithfulness(llm=ragas_llm),
+        AnswerRelevancy(llm=ragas_llm, embeddings=ragas_embeddings),
+        ContextRecall(llm=ragas_llm),
+        ContextPrecision(llm=ragas_llm),
+        AnswerCorrectness(llm=ragas_llm)
+    ],
+    llm=ragas_llm,
+    embeddings=ragas_embeddings,
+    run_config=lassito_config
+)
+
+def get_score(val):
+    if isinstance(val, list):
+        return val[0] if val else float('nan')
+    return val
+
+print("EREDMÉNYEK (0.0 - 1.0 skálán):")
+print(f"Hűség (Faithfulness):         {get_score(score['faithfulness']):.4f}")
+print(f"Relevancia (AnswerRelevancy): {get_score(score['answer_relevancy']):.4f}")
+print(f"Visszahívás (ContextRecall):  {get_score(score['context_recall']):.4f}")
+print(f"Kontextus Precizitás (ContextPrec): {get_score(score['context_precision']):.4f}")
+print(f"Válasz Helyessége (Correctness): {get_score(score['answer_correctness']):.4f}")
