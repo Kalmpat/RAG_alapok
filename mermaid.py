@@ -1,5 +1,8 @@
 # kódoláshoz
 import base64
+import urllib
+import zlib
+
 import streamlit as st
 # Regex alkalmazása
 import re
@@ -13,28 +16,24 @@ def mermaid(graph):
     # kód tisztítása, helyettesítés és csere
     #clean_code = re.sub(r"```mermaid\n|```", "", graph).strip()
 
-
-    match = re.search(r"```[Mm]ermaid\n(.*?)```", graph, re.DOTALL)
-    if not match:
+    if not graph:
         st.warning("Nem található Mermaid diagram a válaszban.")
-        # Itt is bájtban
-        return b""
+        return
 
-    clean_code = match.group(1).strip()
+    #match = re.search(r"```[Mm]ermaid\n(.*?)```", graph, re.DOTALL)
+    #if not match:
+    #    #st.warning("Nem található Mermaid diagram a válaszban.")
+    #    return
+
+    #clean_code = match.group(1).strip()
     # Debugra
     # st.code(clean_code, language="text")
-
-    graphbytes = clean_code.encode("utf8") # kód --> bájt
+    graphbytes = graph.encode("utf8") # kód --> bájt
     base64_bytes = base64.urlsafe_b64encode(graphbytes) # URl alakítás
     base64_string = base64_bytes.decode("ascii") # visszalakaítás (dekódolás)
 
     url = f"https://mermaid.ink/img/{base64_string}"
-    response = requests.get(url)
-    if response.status_code == 200:
-        return response.content
-    else:
-        # Hibás volt bájtot adunk vissza
-        return b""
+    return requests.get(url).content
     #st.image(url, use_container_width=True)
 
 def merm(graph):
@@ -47,7 +46,7 @@ def merm(graph):
     return clean_code
 
 def clean_text(text):
-   pattern = r"```\s*[Mm]ermaid.*?```"
+   pattern = r"```\s*(graphviz|mermaid).*?```"
 
    # flags=re.DOTALL és re.IGNORECASE megakályozza a kis, nagy -betűket és a sor emelést
    cleaned = re.sub(pattern, "", text, flags=re.DOTALL | re.IGNORECASE).strip()
@@ -75,7 +74,7 @@ def render_custom_mermaid(code: str, height: int = 600):
                 justify-content: center;
                 align-items: center;
                 height: 100vh; 
-                overflow: hidden;
+                overflow: hidden; /* Ezt érdemes visszatenni */
             }}
             .mermaid {{
                 width: 100%;
@@ -99,3 +98,62 @@ def render_custom_mermaid(code: str, height: int = 600):
     </html>
     """
     components.html(html_code, height=height)
+
+def viz(graph):
+    match = re.search(r"```[Gg]raphviz\n(.*?)```", graph, re.DOTALL)
+    if not match:
+        st.warning("Nem található Graphviz diagram a válaszban.")
+        return
+
+    clean_code = match.group(1).strip()
+    return clean_code
+
+def graphviz(graph):
+    #match = re.search(r"```[Gg]raphviz\n(.*?)```", graph, re.DOTALL)
+    #if not match:
+    #    return
+    if not graph:
+        st.warning("Nem található Graphviz diagram a válaszban.")
+        return
+    #clean_code = match.group(1).strip()
+    # Hasonló mint a mermaid átalakítás
+    #encoded_graph = urllib.parse.quote(clean_code)
+
+    response = requests.post(
+        "https://quickchart.io/graphviz",
+        json={"graph": graph, "format": "png"}
+    )
+    return response.content
+
+def echart(graph):
+    #match = re.search(r"```[Ee]chart\n(.*?)```", graph, re.DOTALL)
+    if not graph:
+        st.warning("Nem található Echart diagram a válaszban.")
+        return
+
+    #clean_code = match.group(1).strip()
+    clean_code = graph.replace('\u00a0', ' ')
+
+    return clean_code
+
+def plantuml(graph):
+    if not graph:
+        return
+    compressed = zlib.compress(graph.encode("utf-8"), 9)
+    base64_string = base64.urlsafe_b64encode(compressed).decode("ascii")
+
+    url = f"https://kroki.io/plantuml/png/{base64_string}"
+    response = requests.get(url)
+    return response.content
+
+def d2lang(graph):
+    if not graph:
+        return
+    compressed = zlib.compress(graph.encode("utf-8"), 9)
+    base64_string = base64.urlsafe_b64encode(compressed).decode("ascii")
+
+    url = f"https://kroki.io/d2/png/{base64_string}"
+    response = requests.get(url)
+    return response.content
+
+

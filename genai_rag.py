@@ -19,6 +19,8 @@ from langchain_google_genai import GoogleGenerativeAIEmbeddings
 # Json-höz
 import json
 
+from prompts import prompts
+from sema import mermaid_sema, graphviz_sema, echart_sema, plantuml_sema, d2lang_sema
 # Beállítások betöltése
 #load_dotenv()
 #api_key = os.getenv("GOOGLE_API_KEY")
@@ -126,7 +128,7 @@ def embed_file(filename,api_key):
 
 
 
-def process(query, api_key, model_name):
+def process(query, api_key, model_name, selection_viz):
     client = genai.Client(api_key=api_key)
     vector_store = get_vector_store(api_key)
 
@@ -137,43 +139,33 @@ def process(query, api_key, model_name):
     docs = retriever.invoke(query)
     context_text = "\n\n---\n\n".join([doc.page_content for doc in docs])
 
-    prompt = f"""
-        Te egy tapasztalt oktatási asszisztens vagy. 
+    prompt = prompts(query, context_text, selection_viz)
+    sema = mermaid_sema
+    if selection_viz == "Mermaid":
+        sema = mermaid_sema
+    elif selection_viz == "Graphviz":
+        sema = graphviz_sema
+    elif selection_viz == "Echart":
+        sema = echart_sema
+    elif selection_viz == "Plantuml":
+        sema = plantuml_sema
 
-        Forrásanyag:
-        {context_text}
-
-        Kérdés:
-        {query}
-
-        Szabályok:
-        - Csak a megadott forrásanyagból dolgozz
-        - Ha a forrásanyagban nincs benne a válasz, mondd pontosan ezt: "Sajnos erről nem találtam információt a tananyagban." és szigorúan tilos Mermaid diagramot generálnod
-        - Próbálj meg, egyszerűen válaszolni, hogy a diákok számára a lehető legérthetőbb legyen
-
-
-        Generálj egy érvényes Mermaid.js diagramot a kérdés témájához.
-        Diagramtípusok kiválasztása:
-
-        - graph TD / mindmap: Ha a téma fogalmi felépítéséről, kategóriákról vagy részegységekről szól.
-        - flowchart TD: Ha egy folyamatról, döntési mechanizmusról vagy logikai láncról van szó.
-        - sequenceDiagram: Ha két vagy több szereplő közötti időrendi üzenetváltást kell szemléltetni.
-        - stateDiagram-v2: Ha egy egység különböző állapotait mutatod be.
-        - erDiagram / classDiagram: Ha adatszerkezetek közötti fix kapcsolatokat ábrázolsz.
-
-        Szigorú szabályok:
-        - Csak ```mermaid blokkban add vissza a kódot, semmi más szöveget utána
-        - Csomópontok legyenek rövidek, max 4-5 szó, maximálisan 8 csomópont legyen
-        - Egy csomópont feliratát (pl. A[Szöveg]) csak az első előforduláskor definiáld, utána már csak az azonosítóját (pl. A) használd a nyilaknál!
-        - A Mermaid kódban a csomópontok feliratait idézőjelek nélkül add meg, pl: A[HDD] vagy B[HDD merevlemez].
-        - A Mermaid kódban ne használj kerek zárójelet (), vesszőt vagy egyéb írásjelet még az idézőjeleken belül sem.
-        """
 
     response = client.models.generate_content(
         model=model_name,
         contents=prompt,
+        config={
+            "response_mime_type": "application/json",
+            "response_schema": sema,
+        },
     )
 
     # print(response.text)
 
-    return response
+    #return response
+    adatok = json.loads(response.text)
+    # print(json.dumps(adatok, indent=4,ensure_ascii=False))
+
+    # JSON mentése
+    with open("chatviz.json", "w", encoding="UTF-8") as f:
+        json.dump(adatok, f, indent=4, ensure_ascii=False)

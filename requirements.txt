@@ -12,3 +12,4 @@ langchain-google-genai
 ragas
 datasets
 sentence-transformers
+streamlit-echarts
