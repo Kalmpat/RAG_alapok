@@ -16,6 +16,12 @@ st.title("📚 Jegyzetek")
 SUMMARY_PATH = "summaries"
 PDFS_PATH = "pdfs"
 
+if not os.path.exists(SUMMARY_PATH):
+    os.makedirs(SUMMARY_PATH)
+
+if not os.path.exists(PDFS_PATH):
+    os.makedirs(PDFS_PATH)
+
 cimek = []
 adatok = []
 
@@ -205,57 +211,66 @@ with tab2:
                     st.session_state.kartya_indexe += 1
                     st.session_state.felfedve = False
                     st.rerun()
+    else:
+        st.info("Még nincsenek összefoglalók")
 
 with tab3:
-    st.subheader("ZH generátor:")
-    st.info("""
-        A gomb megnyomásával sikeresen tudsz a feltöltött dokumentumok segítségével zárthelyi dolgozatot generáltatni
-    """)
-    if "zh_kesz" not in st.session_state:
-        st.session_state.zh_kesz = False
+    if os.path.exists(SUMMARY_PATH):
+        files = os.listdir(SUMMARY_PATH)
 
 
-    if st.button("ZH és Javítókulcs generálása", use_container_width=True):
-        with st.spinner("Készülödik"):
-            try:
-                zh_adatok = zh_base(st.session_state.api_key, st.session_state.model)
-                if zh_adatok is None or not isinstance(zh_adatok, dict):
-                    if os.path.exists("zh.json"):
-                        with open("zh.json", "r", encoding="UTF-8") as f:
-                            zh_adatok = json.load(f)
-                    else:
-                        raise ValueError("Nincs adat")
-                zh_generator(zh_adatok)
-                zh_javitokulcs_generator(zh_adatok)
-                st.session_state.zh_kesz = True
-                st.success("A zárthelyi dolgozat és a javítókulcs sikeresen elkészült!")
-            except Exception as e:
-                st.error(f"Hiba történt a generálás során: {e}")
+        if not files:
+            st.info("Még nincsenek összefoglalók")
+        else:
+            st.subheader("ZH generátor:")
+            st.info("""
+                A gomb megnyomásával sikeresen tudsz a feltöltött dokumentumok segítségével zárthelyi dolgozatot generáltatni
+            """)
+            if "zh_kesz" not in st.session_state:
                 st.session_state.zh_kesz = False
 
-    if st.session_state.zh_kesz:
-        col1, col2 = st.columns(2)
-        with col1:
-            zh_pdf_path = os.path.join(PDFS_PATH, "zh.pdf")
-            if os.path.exists(zh_pdf_path):
-                with open(zh_pdf_path, "rb") as f:
-                    st.download_button(
-                        label="📥 Diák feladatlap letöltése (PDF)",
-                        data=f,
-                        file_name="Zarthelyi_Dolgozat.pdf",
-                        mime="application/pdf",
-                        use_container_width=True,
-                        type="primary"
-                    )
 
-        with col2:
-            kulcs_pdf_path = os.path.join(PDFS_PATH, "javitokulcs.pdf")
-            if os.path.exists(kulcs_pdf_path):
-                with open(kulcs_pdf_path, "rb") as f:
-                    st.download_button(
-                        label="🔑 Tanári javítókulcs letöltése (PDF)",
-                        data=f,
-                        file_name="Zarthelyi_Javitokulcs.pdf",
-                        mime="application/pdf",
-                        use_container_width=True
-                    )
+            if st.button("ZH és Javítókulcs generálása", use_container_width=True):
+                with st.spinner("Készülödik"):
+                    try:
+                        zh_adatok = zh_base(st.session_state.api_key, st.session_state.model)
+                        if zh_adatok is None or not isinstance(zh_adatok, dict):
+                            if os.path.exists("zh.json"):
+                                with open("zh.json", "r", encoding="UTF-8") as f:
+                                    zh_adatok = json.load(f)
+                            else:
+                                raise ValueError("Nincs adat")
+                        zh_generator(zh_adatok)
+                        zh_javitokulcs_generator(zh_adatok)
+                        st.session_state.zh_kesz = True
+                        st.success("A zárthelyi dolgozat és a javítókulcs sikeresen elkészült!")
+                    except Exception as e:
+                        st.error(f"Hiba történt a generálás során: {e}")
+                        st.session_state.zh_kesz = False
+
+            if st.session_state.zh_kesz:
+                col1, col2 = st.columns(2)
+                with col1:
+                    zh_pdf_path = os.path.join(PDFS_PATH, "zh.pdf")
+                    if os.path.exists(zh_pdf_path):
+                        with open(zh_pdf_path, "rb") as f:
+                            st.download_button(
+                                label="📥 Diák feladatlap letöltése (PDF)",
+                                data=f,
+                                file_name="Zarthelyi_Dolgozat.pdf",
+                                mime="application/pdf",
+                                use_container_width=True,
+                                type="primary"
+                            )
+
+                with col2:
+                    kulcs_pdf_path = os.path.join(PDFS_PATH, "javitokulcs.pdf")
+                    if os.path.exists(kulcs_pdf_path):
+                        with open(kulcs_pdf_path, "rb") as f:
+                            st.download_button(
+                                label="🔑 Tanári javítókulcs letöltése (PDF)",
+                                data=f,
+                                file_name="Zarthelyi_Javitokulcs.pdf",
+                                mime="application/pdf",
+                                use_container_width=True
+                            )

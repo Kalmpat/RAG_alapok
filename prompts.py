@@ -132,6 +132,8 @@ def prompts(query, context_text, selection_viz):
                        - Válaszd ki a legmegfelelőbb diagramtípust az adatok jellegétől függően
                        - Tartalmazza a kezdő és záró tageket (@start... / @end...).
                        - Szintaktikailag helyes legyen
+                       - A 'plantuml_code' értékében minden egyes PlantUML utasítás után használj valódi sortörést (\\n). A kód NEM lehet egyetlen folytonos sor szóközökkel elválasztva!
+                       - Sequence diagram esetén a szereplőket szigorúan kisbetűs 'participant' kulcsszóval definiáld (Pl. `participant Szerver`), a nagybetűs verzió hibát okoz!
                       Az alábbi JSON séma alapján készítsd el
                       """
         return prompt

@@ -75,7 +75,11 @@ with col1:
     with chat_container:
         # Előző beszélgetések megjelenítése
         for message in st.session_state.messages:
-            with st.chat_message(message["role"]):
+            if message["role"] == "user":
+                current_avatar = "avatar/user.png"
+            else:
+                current_avatar = "avatar/bot.png"
+            with st.chat_message(message["role"], avatar=current_avatar):
                 st.markdown(message["content"])
 
     # Chatbot
@@ -147,12 +151,12 @@ with col2:
                 st_echarts(code, height="500px")
             except Exception as e:
                 st.error(f"Echart megjelenítési hiba: {e}")
-        elif st.session_state.viz_selection == "Plantuml" and st.session_state.image:
+        elif st.session_state.viz_selection == "Plantuml" and st.session_state.plantuml_code:
             st.image(st.session_state.image, use_container_width=True)
         else:
             st.warning("Nincs megjeleníthető ábra")
 
-    if "image" in st.session_state:
+    if "image" in st.session_state and st.session_state.viz_selection != "Echart":
         st.download_button(
                 label = "Ábra letöltése",
                 data = st.session_state.image,
