@@ -4,6 +4,8 @@ import os
 from google import genai
 # Adatgyűjtés (szkenelés)
 from langchain_community.document_loaders import PyPDFLoader, PyPDFDirectoryLoader
+
+from pdf_generator import pdf_generator
 from sema import tananyag_sema
 
 # JSON-höz
@@ -47,7 +49,7 @@ def process_document(file_path, api_key, model_name):
         Az összefoglalót az alábbi JSON séma alapján készíts el
         """
 
-    print("\nÖsszefoglaló generálása\n")
+    # print("\nÖsszefoglaló generálása\n")
     response = client.models.generate_content(
         model=model_name,
         contents=prompt,
@@ -67,4 +69,14 @@ def process_document(file_path, api_key, model_name):
     with open("tananyag.json", "w", encoding="UTF-8") as f:
         json.dump(adatok, f, indent=4, ensure_ascii=False)
 
+    # Külön elmentjük a JSON fájlokat
+    SUMMARIES_PATH = "summaries"
+    if not os.path.exists(SUMMARIES_PATH):
+        os.makedirs(SUMMARIES_PATH)
+    base_name = os.path.splitext(os.path.basename(file_path))[0]
+    summary_file = os.path.join(SUMMARIES_PATH, f"{base_name}.json")
+    with open(summary_file, "w", encoding="UTF-8") as f:
+        json.dump(adatok, f, indent=4, ensure_ascii=False)
+
+    pdf_generator(adatok, base_name)
 

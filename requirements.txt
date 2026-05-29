@@ -13,3 +13,5 @@ ragas
 datasets
 sentence-transformers
 streamlit-echarts
+streamlit-mermaid
+fpdf2
