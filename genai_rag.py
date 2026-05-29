@@ -15,7 +15,10 @@ from uuid import uuid4
 # Vektorizálás rész
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
 
-
+# Rerankerhez
+from sentence_transformers import CrossEncoder
+# Korpusz tisztítás
+import re
 # Json-höz
 import json
 
@@ -127,6 +130,24 @@ def embed_file(filename,api_key):
     vector_store.add_documents(documents=chunks, ids=uuids)
 
 
+rerank_model = CrossEncoder("cross-encoder/ms-marco-MiniLM-L-6-v2")
+# Saját reranker CrossEncoder segítségével
+def reranker(query, docs, top_n):
+    all_pairs = [(query, doc.page_content) for doc in docs]
+    scores = rerank_model.predict(all_pairs)
+    score_pairs = list(zip(docs, scores))
+    score_sorted = sorted(score_pairs, key=lambda x: x[1], reverse=True)
+    return [doc for doc, score in score_sorted[:top_n]]
+
+# Korpusz tisztítása
+def clean_text(text):
+    # Oldalszámok és fejléc eltávolítása
+    text = re.sub(r'^\d+\s+|\s+\d+$', ' ', text)
+    # Szögletes zárójelek eltávolítása
+    text = re.sub(r'\[.*?\]', '', text)
+    # Felesleges szóközök eltávolítása
+    text = re.sub(r'\s+', ' ', text)
+    return text.strip()
 
 def process(query, api_key, model_name, selection_viz):
     client = genai.Client(api_key=api_key)
@@ -137,7 +158,10 @@ def process(query, api_key, model_name, selection_viz):
         search_kwargs={"k": 15, "fetch_k": 30}
     )
     docs = retriever.invoke(query)
-    context_text = "\n\n---\n\n".join([doc.page_content for doc in docs])
+    for doc in docs:
+        doc.page_content = clean_text(doc.page_content)
+    rerank_docs = reranker(query, docs, 10)
+    context_text = "\n\n---\n\n".join([doc.page_content for doc in rerank_docs])
 
     prompt = prompts(query, context_text, selection_viz)
     sema = mermaid_sema

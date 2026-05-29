@@ -6,7 +6,7 @@ from streamlit_echarts import st_echarts
 
 #from chat_monaco import answer_text
 from genai_rag import process
-from mermaid import mermaid, merm, render_custom_mermaid, clean_text, viz, graphviz, echart, plantuml, d2lang
+from diagrams import mermaid, merm, render_custom_mermaid, clean_text, viz, graphviz, echart, plantuml, d2lang
 from streamlit_mermaid import st_mermaid
 
 # Képernyő szélesítése

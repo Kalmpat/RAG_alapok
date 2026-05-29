@@ -2,7 +2,7 @@ import streamlit as st
 from streamlit_monaco import st_monaco
 
 from genai_rag import process
-from mermaid import mermaid, merm, render_custom_mermaid, clean_text, viz, graphviz
+from diagrams import mermaid, merm, render_custom_mermaid, clean_text, viz, graphviz
 from streamlit_mermaid import st_mermaid
 
 

@@ -5,9 +5,9 @@ import json
 import random
 import pandas as pd
 import os
-from mermaid import mermaid
+from diagrams import mermaid
 from zh_generator import zh_base, zh_generator, zh_javitokulcs_generator, mermaid_zh
-
+from streamlit_pdf_viewer import pdf_viewer
 
 
 st.title("📚 Jegyzetek")
@@ -76,7 +76,7 @@ with tab1:
 
 
                         with col_left:
-                            st.pdf(pdf_path, height=400, key=f"pdf_{base_name}")
+                            pdf_viewer(pdf_path, height=400, key=f"pdf_{base_name}")
 
                         with col_right:
                             col_title, col_btn = st.columns([4, 1])

@@ -1,7 +1,7 @@
 from google import genai
 from langchain_classic.retrievers import MultiQueryRetriever
 
-from RAGAS_test2 import vector_store, api_key
+vector_store = []
 
 
 def query_expansion(query, doc, api_key, model_name):
