@@ -9,7 +9,6 @@ from genai_rag import process
 from mermaid import mermaid, merm, render_custom_mermaid, clean_text, viz, graphviz, echart, plantuml, d2lang
 from streamlit_mermaid import st_mermaid
 
-
 # Képernyő szélesítése
 #st.set_page_config(layout="wide")
 
@@ -103,31 +102,33 @@ with col1:
         with chat_container:
             with st.chat_message("assistant", avatar = "avatar/bot.png"):
                 with st.spinner("Gondolkozom..."):
+                    try:
+                        process(query, st.session_state.api_key, st.session_state.model, st.session_state.viz_selection)
+                        with open("chatviz.json", "r", encoding="UTF-8") as f:
+                            adatok = json.load(f)
+                        if st.session_state.viz_selection == "Mermaid":
+                            st.session_state.mermaid_code = adatok["mermaid_code"]
+                            st.session_state.image = mermaid(adatok["mermaid_code"])
+                        elif st.session_state.viz_selection == "Graphviz":
+                            st.session_state.graphviz_code = adatok["graphviz_code"]
+                            st.session_state.image = graphviz(adatok["graphviz_code"])
+                        elif st.session_state.viz_selection == "Echart":
+                            st.session_state.echart_code = echart(adatok["echart_code"])
+                        elif st.session_state.viz_selection == "Plantuml":
+                            st.session_state.plantuml_code = adatok["plantuml_code"]
+                            st.session_state.image = plantuml(adatok["plantuml_code"])
+                        #print(response.text)
+                        #answer_text = clean_text(response.text)
+                        answer_text = adatok["answer"]
+                        print(answer_text)
+                        st.markdown(answer_text)
 
-                    process(query, st.session_state.api_key, st.session_state.model, st.session_state.viz_selection)
-                    with open("chatviz.json", "r", encoding="UTF-8") as f:
-                        adatok = json.load(f)
-                    if st.session_state.viz_selection == "Mermaid":
-                        st.session_state.mermaid_code = adatok["mermaid_code"]
-                        st.session_state.image = mermaid(adatok["mermaid_code"])
-                    elif st.session_state.viz_selection == "Graphviz":
-                        st.session_state.graphviz_code = adatok["graphviz_code"]
-                        st.session_state.image = graphviz(adatok["graphviz_code"])
-                    elif st.session_state.viz_selection == "Echart":
-                        st.session_state.echart_code = echart(adatok["echart_code"])
-                    elif st.session_state.viz_selection == "Plantuml":
-                        st.session_state.plantuml_code = adatok["plantuml_code"]
-                        st.session_state.image = plantuml(adatok["plantuml_code"])
-                    #print(response.text)
-                    #answer_text = clean_text(response.text)
-                    answer_text = adatok["answer"]
-                    print(answer_text)
-                    st.markdown(answer_text)
 
-
-                    # Nagy nyelvi modell üzenetének elmentése
-                    st.session_state.messages.append({"role": "assistant", "content": answer_text})
-                    st.rerun()
+                        # Nagy nyelvi modell üzenetének elmentése
+                        st.session_state.messages.append({"role": "assistant", "content": answer_text})
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"**Alkalmazás hiba:** {e}")
 
 
 # Vizualizáció

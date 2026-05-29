@@ -5,6 +5,7 @@ import json
 from genai_rag import delete_file, embed_file
 from osszefoglalo import process_document
 import time
+from google.genai import errors
 
 DATA_PATH = r"data"
 #st.set_page_config(layout="wide")
@@ -78,10 +79,15 @@ if uploaded_files:
 
             # Feldolgozás egyesével
             with st.spinner(f"Feldolgozás: {uploaded_file.name}..."):
-                process_document(save_path,st.session_state.api_key,st.session_state.model)
-                embed_file(save_path, st.session_state.api_key)
-                st.success(f"Kész: {uploaded_file.name}")
-            new_file = True
+                try:
+                    process_document(save_path,st.session_state.api_key,st.session_state.model)
+                    embed_file(save_path, st.session_state.api_key)
+                    st.success(f"Kész: {uploaded_file.name}")
+                    new_file = True
+                except Exception as e:
+                    st.error(f"**Alkalmazás hiba:** {e}")
+                    continue
+
 
 if new_file:
     st.rerun()
