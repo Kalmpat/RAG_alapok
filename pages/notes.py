@@ -130,9 +130,11 @@ with tab2:
         df = df.rename(
             columns={"kifejezes": "Kifejezés", "magyarazat": "Magyarázat"}
         )
-        tab1, tab2 = st.tabs(["📋 Szakkifejezések", "📜 Tételek"])
+        st.markdown("### Szakkifejezések:")
+        tab1, tab2 = st.tabs(["📋 Definíciók", "📜 Tételek"])
+
         with tab1:
-            st.markdown("### Szakkifejezések:")
+            st.markdown("### Definíciók:")
             st.dataframe(df, use_container_width=True)
 
             tetelek_listaja = kivallasztott_json["szakkifejezesek"]["tetelek"]

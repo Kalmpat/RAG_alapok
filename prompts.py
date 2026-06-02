@@ -1,3 +1,6 @@
+# Előfordulhatnak problémák, pl szintaktikai hibák vagy a szerverek nem érhetőek el
+# Megoldás: promptokat finomhangolni kell (legtöbbször a diagramtípusok pontos leírását is meg kellene adni)
+
 def prompts(query, context_text, selection_viz):
 
     if selection_viz =="Mermaid":
@@ -26,12 +29,14 @@ def prompts(query, context_text, selection_viz):
             - erDiagram / classDiagram: Ha adatszerkezetek közötti fix kapcsolatokat ábrázolsz.
     
             Szigorú szabályok:
+            - Válassz egyetlen diagramtípust a fenti lista alapján
             - Csomópontok legyenek rövidek, max 4-5 szó, maximálisan 8 csomópont legyen
             - Egy csomópont feliratát (pl. A[Szöveg]) csak az első előforduláskor definiáld, utána már csak az azonosítóját (pl. A) használd a nyilaknál!
             - A nyilak formátuma felirat esetén: A -->|Szöveg| B (Ez a legbiztosabb forma)
             - A csomópontok szövegeiben (a szögletes zárójelen belül) ne használj idézőjeleket, kerek zárójelet vagy vesszőt.
             - A Mermaid kódban a csomópontok feliratait idézőjelek nélkül add meg, pl: A[HDD] vagy B[HDD merevlemez].
             - A Mermaid kódban ne használj kerek zárójelet (), vesszőt vagy egyéb írásjelet még az idézőjeleken belül sem.
+            - Ha mindmap: csak behúzással jelöld a hierarchiát, ne használj nyilakat vagy kapcsoló szimbólumokat
             Az alábbi JSON séma alapján készítsd el
             """
         return prompt

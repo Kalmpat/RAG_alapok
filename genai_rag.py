@@ -120,6 +120,7 @@ def embed_file(filename,api_key):
     )
 
     chunks = text_splitter.split_documents(document)
+
     vector_store = Chroma(
         collection_name="tananyagok",
         embedding_function=embeddings_model,
@@ -140,14 +141,15 @@ def reranker(query, docs, top_n):
     return [doc for doc, score in score_sorted[:top_n]]
 
 # Korpusz tisztítása
-def clean_text(text):
-    # Oldalszámok és fejléc eltávolítása
-    text = re.sub(r'^\d+\s+|\s+\d+$', ' ', text)
-    # Szögletes zárójelek eltávolítása
-    text = re.sub(r'\[.*?\]', '', text)
-    # Felesleges szóközök eltávolítása
-    text = re.sub(r'\s+', ' ', text)
-    return text.strip()
+# Megeshet hogy rontja a teljesítményt
+#def clean_text(text):
+#    # Oldalszámok és fejléc eltávolítása
+#    text = re.sub(r'^\d+\s+|\s+\d+$', ' ', text)
+#    # Szögletes zárójelek eltávolítása
+#    text = re.sub(r'\[.*?\]', '', text)
+#    # Felesleges szóközök eltávolítása
+#    text = re.sub(r'\s+', ' ', text)
+#    return text.strip()
 
 def process(query, api_key, model_name, selection_viz):
     client = genai.Client(api_key=api_key)
@@ -158,8 +160,8 @@ def process(query, api_key, model_name, selection_viz):
         search_kwargs={"k": 15, "fetch_k": 30}
     )
     docs = retriever.invoke(query)
-    for doc in docs:
-        doc.page_content = clean_text(doc.page_content)
+    #for doc in docs:
+    #    doc.page_content = clean_text(doc.page_content)
     rerank_docs = reranker(query, docs, 10)
     context_text = "\n\n---\n\n".join([doc.page_content for doc in rerank_docs])
 
