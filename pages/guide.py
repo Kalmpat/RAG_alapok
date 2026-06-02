@@ -76,7 +76,7 @@ with cols[1]:
             st.write("A tanulási eredményeidet a Jegyzetek oldalon PDF formátumban töltheted le.")
 
         st.divider()
-        st.warning("⚠️ Egyszerre egy dokumentum az aktív tananyag!")
+        st.warning("⚠️ Egyszerre csak egy dokumentumot töltsünk fel!")
 
     # Tippek és Motorok
     with tab3:
