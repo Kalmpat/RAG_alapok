@@ -106,17 +106,19 @@ with col1:
                         process(query, st.session_state.api_key, st.session_state.model, st.session_state.viz_selection)
                         with open("chatviz.json", "r", encoding="UTF-8") as f:
                             adatok = json.load(f)
+
                         if st.session_state.viz_selection == "Mermaid":
                             st.session_state.mermaid_code = adatok["mermaid_code"]
-                            st.session_state.image = mermaid(adatok["mermaid_code"])
+                            st.session_state.image = mermaid(adatok["mermaid_code"]) if adatok["mermaid_code"] else ""
                         elif st.session_state.viz_selection == "Graphviz":
                             st.session_state.graphviz_code = adatok["graphviz_code"]
-                            st.session_state.image = graphviz(adatok["graphviz_code"])
+                            st.session_state.image = graphviz(adatok["graphviz_code"]) if adatok["graphviz_code"] else ""
                         elif st.session_state.viz_selection == "Echart":
-                            st.session_state.echart_code = echart(adatok["echart_code"])
+                            st.session_state.echart_code = echart(adatok["echart_code"]) if adatok["echart_code"] else ""
                         elif st.session_state.viz_selection == "Plantuml":
                             st.session_state.plantuml_code = adatok["plantuml_code"]
-                            st.session_state.image = plantuml(adatok["plantuml_code"])
+                            st.session_state.image = plantuml(adatok["plantuml_code"]) if adatok["plantuml_code"] else ""
+
                         #print(response.text)
                         #answer_text = clean_text(response.text)
                         answer_text = adatok["answer"]

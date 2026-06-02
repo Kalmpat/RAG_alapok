@@ -2,6 +2,8 @@
 # Megoldás: promptokat finomhangolni kell (legtöbbször a diagramtípusok pontos leírását is meg kellene adni)
 
 def prompts(query, context_text, selection_viz):
+    if not context_text or len(context_text.strip()) == 0:
+        context_text = "Sajnos erről nem találtam információt a tananyagban."
 
     if selection_viz =="Mermaid":
         prompt = f"""
