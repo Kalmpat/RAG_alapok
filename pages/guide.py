@@ -109,7 +109,7 @@ with cols[1]:
         with v_col1:
             with st.container(border=True):
                 st.markdown("### 🐚 Mermaid")
-                st.caption("Folyamatok, szekvenciák, állapotgépek és mindmapek deklaratív leírására.")
+                st.caption("Folyamatok, szekvenciák, állapotgépek és fogalmi térképek deklaratív leírására.")
                 st.markdown("")
         with v_col2:
             with st.container(border=True):
@@ -119,12 +119,12 @@ with cols[1]:
         with v_col3:
             with st.container(border=True):
                 st.markdown("### 📊 ECharts")
-                st.caption("Interaktív, egérrel mozgatható statisztikai diagramok (oszlop, vonal, pite) JSON alapon.")
+                st.caption("Interaktív, egérrel mozgatható statisztikai diagramok (oszlop, kör) JSON alapon.")
                 st.markdown("")
         with v_col4:
             with st.container(border=True):
                 st.markdown("### 📐️ PlantUML")
-                st.caption("Szoftvertervezési és mérnöki ábrák (Usecase, Class, Component, Gantt) generálására.")
+                st.caption("Fogalmi térképek, állapotgépek, szekvenciák és aktivitás diagramok generálására.")
 
         st.divider()
 

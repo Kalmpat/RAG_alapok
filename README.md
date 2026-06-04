@@ -42,10 +42,10 @@ A rendszer egy fejlett **RAG (Retrieval-Augmented Generation)** pipeline-ra ép�
 
 Az alkalmazás egyedülálló tulajdonsága, hogy a kérdés jellege alapján képes 4 különböző vizualizációs motort meghajtani valós időben:
 
-* **🐚 Mermaid.js:** Folyamatok, szekvenciák, állapotgépek és mindmapek leírására.
-* **🕸️ Graphviz:** Komplex irányított gráfok, hálózati topológiák és döntési fák ábrázolására.
-* **📊 ECharts:** Interaktív, egérrel mozgatható statisztikai diagramok (oszlop, vonal, pite) JSON alapon.
-* **📐️ PlantUML:** Szoftvertervezési és mérnöki ábrák (Usecase, Class, Component, Gantt) generálására.
+* **🐚 Mermaid.js:** Folyamatok, szekvenciák, állapotgépek és fogalmi térképek leírására.
+* **🕸️ Graphviz:** Komplex irányított gráfok, hálózati topológiák  döntési fák és színes fogalmi térképek ábrázolására.
+* **📊 ECharts:** Interaktív, egérrel mozgatható statisztikai diagramok (oszlop- és kördiagramok) modern, élénk színekkel JSON alapon.
+* **📐️ PlantUML:** Fogalmi térképek, állapotgépek, szekvenciák és aktivitás diagramok strukturált rendszerek és folyamatok oktatási ábrázoláshoz.
 
 > **Stabilitási megjegyzés:** Mivel a diagramok kódját a  nagy nyelvi modell (LLM) valós időben generálja, a rendszer szigorú rendszerszintű szabályokkal (System Prompts) és egyedi JSON sémákkal kényszeríti ki a helyes szintaxist a hibák minimalizálása érdekében.
 
