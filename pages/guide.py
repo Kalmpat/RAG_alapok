@@ -89,7 +89,9 @@ with cols[1]:
                 - "Mi a kapcsolat az OSI modell és a TCP/IP között?"
                 - "Magyarázd el a háromutas kézfogást folyamatábrán!"
                 - "Mi az elektronikus levelezésnek a fő alkotóelemei?"
-                - "Milyen állapotai vannak egy TCP kapcsolatnak?"
+                - "Hogyan dönt az Ethernet kapcsoló (switch) a kapcsolótáblázat alapján, amikor beérkezik egy keret?"
+                - "Ábrázold a HTTP cookie-k működését és az üzenetváltások sorrendjét a kliens és a szerver között, a tananyagban szereplő konkrét '1678'-as azonosító példájával."
+                - "Készíts számszerű statisztikát a PCM 32 időréses keret felosztásáról a szinkronizáció, a jelzésátvitel és a beszédcsatornák mennyisége alapján."
             """)
         with col_q2:
             st.markdown("""
@@ -97,6 +99,9 @@ with cols[1]:
                 - "Szia, mizu?" — nem általános chat.
                 - "Mi volt a tegnapi meccs eredménye?" — csak a PDF-ből dolgozik.
                 - Nagyon hosszú, több összetett kérdést egybegyúró mondatok.
+                - Nem témához illő kérdések.
+                - Egész fejezetek vagy komplett rétegek működésének egyszerre történő lekérdezése (pl. „A fizikai réteg teljes működése”).
+                - Nem támogatott diagramtípusok kényszerítése.
             """)
 
         st.divider()
